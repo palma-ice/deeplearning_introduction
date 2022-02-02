@@ -13,6 +13,7 @@ Then clone the repo onto your local machine:
 Open a julia REPL within the repo on your local machine:
 
 `cd deeplearning_introduction`
+
 `julia`
 
 Acces the package manager by pressing the `]`-key instantiate the packages provided in Project.toml:
