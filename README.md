@@ -26,4 +26,4 @@ You can now run Pluto within the REPL:
 
 `Pluto.run()`
 
-A link should appear in your terminal. You can open it in your browser with `ctrl+click`. Open `main.jl` and enjoy!
+If a Pluto tab does not automatically open in your browser, you can do it manually with `ctrl+click` on the link displayed in the terminal. Open `main.jl` and enjoy!

@@ -35,14 +35,14 @@ For this purpose we will use Julia which should is fast, user-freindly, dynamica
 
 # ╔═╡ 76b7ff5f-d9c8-4b31-8100-0aeae0cfaee6
 md"""
-## Affine Regression with Shallow Network
+### Affine Regression with Shallow Network
 
 Making an affine (or linear) regression on some data is a problem for which reliable analytical solutions exist. **An artificial neural network (ANN) is therefore quite a bad choice for solving this problem!** However, such a simple example allows to understand well what happens under the hood. 
 """
 
 # ╔═╡ fdea54b1-06d8-4ea2-814b-c825b9dec7e1
 md"""
-#### Importing Packages
+## Importing Packages
 
 + Flux: a deep learning package that allows you to go pretty low-level, while being still user-freindly.
 + Makie: a plotting package with several backend. Here the Cairo one has been chosen.
@@ -54,7 +54,7 @@ md"""
 
 # ╔═╡ 5036a12a-1563-4431-8f61-6b2c19b602c0
 md"""
-#### Generating the Data
+## Affine Function as Ground Truth
 
 Here we will construct some data that should be fitted by the ANN. To this end we create a random but reproduceable matrix A and bias vector b.
 """
@@ -74,35 +74,31 @@ Here we will construct some data that should be fitted by the ANN. To this end w
 # ╔═╡ 4a74a7ad-bc6e-488a-91de-2b44df7971de
 begin
 	Random.seed!(1)
-	b = round.( range_param .* 2 .* (Random.rand(ny) .- 0.5), digits=2)
+	M = round.( range_param .* 2 .* (Random.rand(ny,nx) .- 0.5), digits=2)
+end
+
+# ╔═╡ 39b9785d-6c6e-4175-979c-73b7fabad4e0
+begin
 	Random.seed!(1)
-	A = round.( range_param .* 2 .* (Random.rand(ny,nx) .- 0.5), digits=2)
+	p = round.( range_param .* 2 .* (Random.rand(ny) .- 0.5), digits=2)
 end
 
 # ╔═╡ c75ad903-cfd0-4696-b180-ec18e48f5b83
 md"""
+## Generating Data
+
 Now we create some input data $X = [x_1, x_2, ..., x_{n_m}]$ and compute the corresponding output $Y = [y_1, y_2, ..., y_{n_m}]$ of the affine mapping:
 
 ```math
 \begin{equation}
-y_{i} = A x_{i} + b, \quad x_i \in \mathbf{R}^{n_x}, \quad y_{i} \in \mathbf{R}^{n_y}.
+y_{i} = M x_{i} + p, \quad x_i \in \mathbf{R}^{n_x}, \quad y_{i} \in \mathbf{R}^{n_y}.
 \end{equation}
 ```
-
-As real-world data is commonly affected by noise, we add a white noise to the data:
-
-```math
-\begin{equation}
-y_{i} = A x_{i} + b + \nu, \quad \nu \sim \mathcal{N}(0, 1), \quad \nu \in \mathbf{R}^{n_y}.
-\end{equation}
-```
-
 """
 
 # ╔═╡ 7048e5ff-483b-4d39-846a-ecbfe64cef50
 function linearmap(x)
-	Random.seed!(1)
-	return A * x .+ b .+ randn(ny)
+	return M * x .+ p
 end
 
 # ╔═╡ 9cbebc46-2af8-4631-b481-762b53bafad6
@@ -117,7 +113,7 @@ end
 
 # ╔═╡ 02d772e2-07ed-4b8e-bf01-d7c5472fbdbd
 md"""
-#### Build a Dense Layer
+## Build a Dense Layer
 
 Dense layers have exactly the same structure as the above defined deterministic affine mapping! 
 
@@ -141,8 +137,8 @@ We will now initialise such a layer with random parameters. In deep learning, *p
 
 # ╔═╡ 6679b679-7246-4750-b731-17125f38d52a
 begin
-	layer1 = Dense(nx, ny)
-	reshape(layer1.W, (nx,ny))
+	layer1 = Dense(nx, ny)		# Create the layer
+	reshape(layer1.W, (nx,ny))	# Display values of initialisation
 end
 
 # ╔═╡ 6c98fb25-29af-4ace-87e0-f60f28790b24
@@ -150,14 +146,23 @@ predict = Chain(layer1)
 
 # ╔═╡ a541839d-932d-4c2a-af80-9cc2b5f787a7
 md"""
-#### Constructing the Loss
+## Constructing the Loss
 
-As the distance between model and reality cannot be directly measured, it is quantified in term of a loss w.r.t. the output of the model. In other word, if the predicted data is similar to the ground truth, we consider the model to be suited. Our goal can now be formulated rigorously:
+The distance between model and reality is quantified in term of a loss w.r.t. the output of the model $\hat{Y}$. In other word, if the predicted data is similar to the ground truth, we consider the model to be suited. Our goal can now be formulated rigorously:
 
 ```math
 \begin{equation}
 \underset{W, b}{\mathrm{minimise}} \quad  L(\hat{Y}, Y)
 \end{equation}
+```
+
+As an intuitive error measure, we choose the mean square error:
+
+```math
+\begin{eqnarray}
+l(\hat{y}, y) &=& (\hat{y} - y)^{\mathrm{T}}(\hat{y} - y) \\
+L(\hat{Y}, Y) &=& \dfrac{1}{n_m} \underset{\hat{y}, y}{\Sigma} l(\hat{y}, y).
+\end{eqnarray}
 ```
 """
 
@@ -168,9 +173,186 @@ loss(x,y) = Flux.Losses.mse(predict(x), y)
 loss(X[:,1], Y[:,1])
 
 # ╔═╡ f2d6ad9c-1348-4955-a390-ea23e998c734
+md"""
+## Gradient Descent
+
+As we can see here, this value is very high and the model is thus rubbish for now. However, we can change the parameters to reduce the loss! This can be easily done with the gradient descent technique:
+
+```math
+\begin{equation}
+W^{(i+1)} = W^{(i)} - \alpha \nabla_{W} l(\hat{y}, y),
+\end{equation}
+```
+
+with $\alpha \in (0,1)$ the so-called *learning rate*. Computing the gradient can be easily done by the use of the chain rule. In our case, this yields:
+
+```math
+\begin{eqnarray}
+\nabla_{W} l(\hat{y}, y) &=& \dfrac{\partial l}{\partial \hat{y}}\dfrac{\partial \hat{y}}{\partial W} \\
+&=& 2(\hat{y}-y) \otimes x.
+\end{eqnarray}
+```
+
+This gets quite tedious for large systems... but luckily, it is handled by any deep learning package.
+"""
+
+# ╔═╡ d5e60ca5-cfce-40db-b284-d9a278f6d73e
+begin
+	ps = params(predict)
+	gs(x,y) = Flux.gradient(() -> loss(x,y), ps)
+	grad1 = gs(X[:,1], Y[:,1])
+	dW = grad1.grads[grad1.params[1]]
+	db = grad1.grads[grad1.params[2]]
+	predict.layers[1].W .-= 1e-4 .* dW
+	predict.layers[1].b .-= 1e-4 .* db
+end
+
+# ╔═╡ 6254c67c-f4ce-4286-adfa-ab13c1555178
+loss(X[:,1], Y[:,1])
+
+# ╔═╡ 4157d2b4-7946-45ce-b77e-ebdc63744594
+md"""
+Hurray! The cost decreased and if we repeat this several times, we might get a near-zero loss!
+"""
+
+# ╔═╡ 5f51257d-0296-42c5-8908-a25afbd63bf8
+md"""
+## Split the Data
+
+Before going to the full training procedure, we perform a common step called *data-splitting*. While a fraction $f_1$ is used for training, a fraction $f_2$ is used to control the generalisation error during the training. Finally a fraction $f_3$ is kept aside to evaluate the generalisation performance on data that was never evaluated by the ANN. Commonly, $f_2 = f_3$ is chosen. Typical values of $f$ are:
++ $f_1 \in [0.5, 0.9]$
++ $f_2, f_3 \in [0.05, 0.25]$
+"""
+
+# ╔═╡ 8f5c2f4a-03a9-472f-a0ee-31200d631454
+begin
+	batch_size = 100
+	ntrain = Int(round(0.7*nm, digits=2))
+	Xtrain, Ytrain = X[:, 1:ntrain], Y[:, 1:ntrain]
+	Xdev, Ydev = X[:, ntrain:nm], Y[:, ntrain:nm]
+	train_loader = Flux.Data.DataLoader( (data=Xtrain, label=Ytrain), batchsize=100, shuffle=true)
+end
+
+# ╔═╡ e80866d2-fa32-40db-871f-fe43734b90a8
+md"""
+## Build Batches of Training Data
+
+Another data-splitting that is commonly performed is to seperate the training data in batches of size $n_b$. This allows to update the parameters on a small number of experiments, thus avoiding some drawbacks:
++ If $n_b = 1$, we get our previous update method. This is noisy and not well-suited in the vicinity of the minimum.
++ If $n_b = n_m$, updating takes a long time and we miss some noisiness to leave local minima.
+"""
+
+# ╔═╡ 0e659769-229c-47ea-8db8-9ab59e750162
+
+
+# ╔═╡ ab43a786-4aaa-4d25-8f8f-d77e414f10f9
+md"""
+## Train the Network
+
+Now we want to stack everything we have seen until now to obtain our linear regression!
+"""
+
+# ╔═╡ 122a1c6f-5fb5-4045-a297-b57c1f4a15d6
+begin
+	n_epochs = 10
+	trainloss = []
+	devloss = []
+	opt = Descent(1e-4)
+	scale_epoch = ntrain/batch_size
+	for epoch in 1:n_epochs
+		for (x,y) in train_loader
+			g = Flux.gradient(ps) do
+				loss(x,y)
+			end
+			Flux.update!(opt, ps, g)
+			append!(trainloss, loss(x,y))
+			append!(devloss, loss(Xdev, Ydev))
+		end
+	end
+
+end
+
+# ╔═╡ 3f55e36d-314b-4c47-a352-b860035fd353
+begin
+	fig = Figure(resolution = (800, 400))
+	ax = Axis(fig[1,1], xlabel="epochs", ylabel="loss")
+	lines!(ax, (1:length(trainloss)) ./  scale_epoch, Float32.(trainloss))
+	lines!(ax, (1:length(devloss)) ./ scale_epoch , Float32.(devloss))
+	fig
+end
+
+# ╔═╡ 32e5074f-29cd-40b5-86a3-13a083478278
+md"""
+## Comparison with Ground Truth
+
+Now that we obtained quite a low error, we want to verify whether we recovered the parameters of the ground truth:
+"""
+
+# ╔═╡ a0ef458b-04ad-4612-ac8f-956ff86d377a
+predict.layers[1].W
+
+# ╔═╡ 5c8c4b65-da47-4627-9bc1-948e5628a75e
+M
+
+# ╔═╡ 077436db-0302-40bc-adf9-6254b40a7311
+md"""
+For larger models, we could prefer looking at the 2-norm of the matrix:
+"""
+
+# ╔═╡ dfeb22f7-9c26-4e1a-a70d-8f5a27203465
+
+
+# ╔═╡ 85db91f9-0e1b-4557-9b9c-cc2390a1907e
+md"""
+## GPU Parallelisation
+
+Graphic Processing Unit (GPU) are able to highly parallelise some operations and therefore perform some specific tasks faster than a CPU. The training procedure of an ANN is suited for GPU computation and therefore allows the computation time to be drastically reduced in most cases.
+
+Using GPU is extremely easy with Flux, as we only have to convert all the variables into CUDA arrays. The rest is directly handled by the package.
+"""
+
+# ╔═╡ 8b30cdad-1517-4367-8037-4d7ddf5dfc8f
+function unpack_and_cudify(data, n)
+    X, Y = data[1:n, :], data[(n+1):end, :]
+    return cu(Float32.(Matrix(X))), cu(Float32.(Matrix(Y)))
+end
+
+# ╔═╡ 242499eb-036e-457c-8f26-58bb6a75e844
+md"""
+## Noisy Data
+
+As real-world data is commonly affected by noise, we add a white noise to the data:
+
+```math
+\begin{equation}
+y_{i} = M x_{i} + p + \nu, \quad \nu \sim \mathcal{N}(0, 1), \quad \nu \in \mathbf{R}^{n_y}.
+\end{equation}
+```
+"""
+
+# ╔═╡ f22aab50-96b7-48c6-993b-a8613a5263c0
 
 
 # ╔═╡ 31a1aa20-57f5-4463-8d61-82b10c045799
+md"""
+## A Brief Summary
+
++ Loss extremely important.
++ Gradient descent is a key component.
++ Large model? --> Never train it on CPU!
++ Any more complex architecture of ANN relies on the same basic principles!
+"""
+
+# ╔═╡ d1c7aa96-989f-4ef6-b99f-3dd591336ae1
+md"""
+## Limitations
+
++ MSE not always the best!
++ More elaborate optimisers perform better then gradient descent!
++ Any more complex architecture of ANN relies on the same basic principles!
+"""
+
+# ╔═╡ 2d5dc63c-437e-47a5-a50f-9fb58de7fc32
 
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -1490,28 +1672,50 @@ version = "3.5.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═4e2c385b-1d4a-4478-949b-4ba5d684ef84
-# ╠═822e024f-819f-4b36-8cdb-8ca69174cd95
-# ╠═76b7ff5f-d9c8-4b31-8100-0aeae0cfaee6
-# ╠═fdea54b1-06d8-4ea2-814b-c825b9dec7e1
+# ╟─4e2c385b-1d4a-4478-949b-4ba5d684ef84
+# ╟─822e024f-819f-4b36-8cdb-8ca69174cd95
+# ╟─76b7ff5f-d9c8-4b31-8100-0aeae0cfaee6
+# ╟─fdea54b1-06d8-4ea2-814b-c825b9dec7e1
 # ╠═d9ca9886-8410-11ec-0f6b-957729a9c708
-# ╠═5036a12a-1563-4431-8f61-6b2c19b602c0
+# ╟─5036a12a-1563-4431-8f61-6b2c19b602c0
 # ╠═f1cb6788-88f1-4e13-8201-27642d6debd9
 # ╠═a9f133e5-9eec-497b-ab75-30593eaa8ba7
 # ╠═432b0747-e0c2-4a0a-bcbb-0ee7ffce6e79
 # ╠═2917a853-6272-4696-b0a1-60cfebd0a50d
 # ╠═4a74a7ad-bc6e-488a-91de-2b44df7971de
-# ╠═c75ad903-cfd0-4696-b180-ec18e48f5b83
+# ╠═39b9785d-6c6e-4175-979c-73b7fabad4e0
+# ╟─c75ad903-cfd0-4696-b180-ec18e48f5b83
 # ╠═7048e5ff-483b-4d39-846a-ecbfe64cef50
 # ╠═9cbebc46-2af8-4631-b481-762b53bafad6
 # ╠═94c7cc46-b46c-4bfd-b73a-3730605aeb15
-# ╠═02d772e2-07ed-4b8e-bf01-d7c5472fbdbd
+# ╟─02d772e2-07ed-4b8e-bf01-d7c5472fbdbd
 # ╠═6679b679-7246-4750-b731-17125f38d52a
 # ╠═6c98fb25-29af-4ace-87e0-f60f28790b24
-# ╠═a541839d-932d-4c2a-af80-9cc2b5f787a7
+# ╟─a541839d-932d-4c2a-af80-9cc2b5f787a7
 # ╠═373f5103-9adc-426c-bbcd-d19a511463e6
 # ╠═06fbb7f6-10cd-4ada-bacf-2e44e5947f81
-# ╠═f2d6ad9c-1348-4955-a390-ea23e998c734
-# ╠═31a1aa20-57f5-4463-8d61-82b10c045799
+# ╟─f2d6ad9c-1348-4955-a390-ea23e998c734
+# ╠═d5e60ca5-cfce-40db-b284-d9a278f6d73e
+# ╠═6254c67c-f4ce-4286-adfa-ab13c1555178
+# ╟─4157d2b4-7946-45ce-b77e-ebdc63744594
+# ╟─5f51257d-0296-42c5-8908-a25afbd63bf8
+# ╠═8f5c2f4a-03a9-472f-a0ee-31200d631454
+# ╟─e80866d2-fa32-40db-871f-fe43734b90a8
+# ╠═0e659769-229c-47ea-8db8-9ab59e750162
+# ╟─ab43a786-4aaa-4d25-8f8f-d77e414f10f9
+# ╠═122a1c6f-5fb5-4045-a297-b57c1f4a15d6
+# ╠═3f55e36d-314b-4c47-a352-b860035fd353
+# ╟─32e5074f-29cd-40b5-86a3-13a083478278
+# ╠═a0ef458b-04ad-4612-ac8f-956ff86d377a
+# ╠═5c8c4b65-da47-4627-9bc1-948e5628a75e
+# ╟─077436db-0302-40bc-adf9-6254b40a7311
+# ╠═dfeb22f7-9c26-4e1a-a70d-8f5a27203465
+# ╟─85db91f9-0e1b-4557-9b9c-cc2390a1907e
+# ╠═8b30cdad-1517-4367-8037-4d7ddf5dfc8f
+# ╟─242499eb-036e-457c-8f26-58bb6a75e844
+# ╠═f22aab50-96b7-48c6-993b-a8613a5263c0
+# ╟─31a1aa20-57f5-4463-8d61-82b10c045799
+# ╟─d1c7aa96-989f-4ef6-b99f-3dd591336ae1
+# ╠═2d5dc63c-437e-47a5-a50f-9fb58de7fc32
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
