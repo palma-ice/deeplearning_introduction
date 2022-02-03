@@ -166,12 +166,6 @@ L(\hat{Y}, Y) &=& \dfrac{1}{n_m} \underset{\hat{y}, y}{\Sigma} l(\hat{y}, y).
 ```
 """
 
-# ╔═╡ 373f5103-9adc-426c-bbcd-d19a511463e6
-loss(x,y) = Flux.Losses.mse(predict(x), y)
-
-# ╔═╡ 06fbb7f6-10cd-4ada-bacf-2e44e5947f81
-loss(X[:,1], Y[:,1])
-
 # ╔═╡ f2d6ad9c-1348-4955-a390-ea23e998c734
 md"""
 ## Gradient Descent
@@ -196,20 +190,6 @@ with $\alpha \in (0,1)$ the so-called *learning rate*. Computing the gradient ca
 This gets quite tedious for large systems... but luckily, it is handled by any deep learning package.
 """
 
-# ╔═╡ d5e60ca5-cfce-40db-b284-d9a278f6d73e
-begin
-	ps = params(predict)
-	gs(x,y) = Flux.gradient(() -> loss(x,y), ps)
-	grad1 = gs(X[:,1], Y[:,1])
-	dW = grad1.grads[grad1.params[1]]
-	db = grad1.grads[grad1.params[2]]
-	predict.layers[1].W .-= 1e-4 .* dW
-	predict.layers[1].b .-= 1e-4 .* db
-end
-
-# ╔═╡ 6254c67c-f4ce-4286-adfa-ab13c1555178
-loss(X[:,1], Y[:,1])
-
 # ╔═╡ 4157d2b4-7946-45ce-b77e-ebdc63744594
 md"""
 Hurray! The cost decreased and if we repeat this several times, we might get a near-zero loss!
@@ -225,13 +205,23 @@ Before going to the full training procedure, we perform a common step called *da
 """
 
 # ╔═╡ 8f5c2f4a-03a9-472f-a0ee-31200d631454
-begin
-	batch_size = 100
-	ntrain = Int(round(0.7*nm, digits=2))
+function split_data(f1, f2, nm, X, Y)
+	ntrain = Int(round(f1*nm, digits=0))
+	ndev = Int(round((f1+f2)*nm, digits=0))
 	Xtrain, Ytrain = X[:, 1:ntrain], Y[:, 1:ntrain]
-	Xdev, Ydev = X[:, ntrain:nm], Y[:, ntrain:nm]
-	train_loader = Flux.Data.DataLoader( (data=Xtrain, label=Ytrain), batchsize=100, shuffle=true)
+	Xdev, Ydev = X[:, ntrain:ndev], Y[:, ntrain:ndev]
+	Xtest, Ytest = X[:, ndev:nm], Y[:, ndev:nm]
+	return ntrain, Xtrain, Ytrain, Xdev, Ydev, Xtest, Ytest
 end
+
+# ╔═╡ b2a47c06-14b6-4136-ab7f-3adafdc84836
+size(Xtrain)
+
+# ╔═╡ ec6c51e3-bc77-4df5-824e-1ea37963c43d
+size(Xdev)
+
+# ╔═╡ 69a660da-db5b-4ff5-80b3-13ac37f1769c
+size(Xtest)
 
 # ╔═╡ e80866d2-fa32-40db-871f-fe43734b90a8
 md"""
@@ -243,7 +233,11 @@ Another data-splitting that is commonly performed is to seperate the training da
 """
 
 # ╔═╡ 0e659769-229c-47ea-8db8-9ab59e750162
-
+begin
+	batch_size = 100
+	train_loader = Flux.Data.DataLoader( (data=Xtrain, label=Ytrain), 
+										  batchsize=batch_size, shuffle=true)
+end
 
 # ╔═╡ ab43a786-4aaa-4d25-8f8f-d77e414f10f9
 md"""
@@ -252,30 +246,17 @@ md"""
 Now we want to stack everything we have seen until now to obtain our linear regression!
 """
 
-# ╔═╡ 122a1c6f-5fb5-4045-a297-b57c1f4a15d6
-begin
-	n_epochs = 10
-	trainloss = []
-	devloss = []
-	opt = Descent(1e-4)
-	scale_epoch = ntrain/batch_size
-	for epoch in 1:n_epochs
-		for (x,y) in train_loader
-			g = Flux.gradient(ps) do
-				loss(x,y)
-			end
-			Flux.update!(opt, ps, g)
-			append!(trainloss, loss(x,y))
-			append!(devloss, loss(Xdev, Ydev))
-		end
-	end
-
-end
+# ╔═╡ fcac5bcb-5d04-4b86-8426-c03ef117b45c
+md"""
+From worker 2:      0.007323 seconds (26.61 k allocations: 12.665 MiB)
+"""
 
 # ╔═╡ 3f55e36d-314b-4c47-a352-b860035fd353
-begin
+function plot_loss(ntrain, batch_size, trainloss, devloss)
+	scale_epoch = ntrain/batch_size
 	fig = Figure(resolution = (800, 400))
-	ax = Axis(fig[1,1], xlabel="epochs", ylabel="loss")
+	ax = Axis(fig[1,1], xlabel="epochs", ylabel="loss", 
+		      xminorticks=IntervalsBetween(5), xminorgridvisible=true)
 	lines!(ax, (1:length(trainloss)) ./  scale_epoch, Float32.(trainloss))
 	lines!(ax, (1:length(devloss)) ./ scale_epoch , Float32.(devloss))
 	fig
@@ -300,7 +281,115 @@ For larger models, we could prefer looking at the 2-norm of the matrix:
 """
 
 # ╔═╡ dfeb22f7-9c26-4e1a-a70d-8f5a27203465
+norm2(W-M)
 
+# ╔═╡ 242499eb-036e-457c-8f26-58bb6a75e844
+md"""
+## Noisy Data
+
+As real-world data is commonly affected by noise, we add a white noise to the data:
+
+```math
+\begin{equation}
+y_{i} = M x_{i} + p + \nu, \quad \nu \sim \mathcal{N}(0, 1), \quad \nu \in \mathbf{R}^{n_y}.
+\end{equation}
+```
+"""
+
+# ╔═╡ c648fc8f-c32a-4321-8714-f50903a238f3
+function noisy_linearmap(x)
+	return M * x .+ p + randn(ny)
+end
+
+# ╔═╡ 970566aa-afa9-4e8d-b4d7-f2f1bcbab84b
+begin
+	Random.seed!(1)
+	Xn = 100 .* rand(nx, nm)
+	Yn = mapslices(noisy_linearmap, X; dims=1)
+end
+
+# ╔═╡ 9506744e-1b89-4fa9-ad0a-55c1cb0a1105
+train_loadern = Flux.Data.DataLoader( (data=Xntrain, label=Yntrain), 
+									   batchsize=batch_size, shuffle=true)
+
+# ╔═╡ 0e39448d-5880-4f4e-b994-85b185bce0d3
+md"""
+### Build a Blank Model & Train it
+"""
+
+# ╔═╡ 06fbb7f6-10cd-4ada-bacf-2e44e5947f81
+loss(X[:,1], Y[:,1])
+
+# ╔═╡ d5e60ca5-cfce-40db-b284-d9a278f6d73e
+begin
+	ps = params(predict)
+	gs(x,y) = Flux.gradient(() -> loss(x,y), ps)
+	grad1 = gs(X[:,1], Y[:,1])
+	dW = grad1.grads[grad1.params[1]]
+	db = grad1.grads[grad1.params[2]]
+	predict.layers[1].W .-= 1e-4 .* dW
+	predict.layers[1].b .-= 1e-4 .* db
+end
+
+# ╔═╡ 6254c67c-f4ce-4286-adfa-ab13c1555178
+loss(X[:,1], Y[:,1])
+
+# ╔═╡ 122a1c6f-5fb5-4045-a297-b57c1f4a15d6
+function train_network(n_epochs, optimiser, train_loader, Xdev, Ydev, ps)
+	trainloss, devloss = [], []
+	for epoch in 1:n_epochs
+		for (x,y) in train_loader
+			g = Flux.gradient(ps) do
+				loss(x,y)
+			end
+			Flux.update!(optimiser, ps, g)
+			append!(trainloss, loss(x,y))
+			append!(devloss, loss(Xdev, Ydev))
+		end
+	end
+	return trainloss, devloss
+end
+
+# ╔═╡ 60b84bf0-b566-43f7-858b-27a0bc88a82c
+begin
+	opt = Descent(1e-4)
+	@time trainloss, devloss = train_network(10, opt, train_loader, Xdev, Ydev, ps)
+end
+
+# ╔═╡ a769d445-ec6c-4dca-95c5-2eb4a47566a2
+plot_loss(ntrain, batch_size, trainloss, devloss)
+
+# ╔═╡ 8dccc75a-8afd-47d4-b25e-0f2542ec9b1a
+md"""
+## Fitting Nonlinear Data
+
+First, let us generate some data based on a nonlinear function:
+"""
+
+# ╔═╡ ed438d19-7926-45e1-83d3-2f4d20455f7b
+function nonlinearmap(x)
+	return x[1] .^ 2
+end
+
+# ╔═╡ e6540e9e-86c1-4425-940d-f606f76e6aff
+md"""
+Fitting nonlinear data can be achieved by applying a so-called *activation* on the output of a dense layer:
+
+$z = \Phi(W*x+b).$
+
+Common choices for $\Phi$ are:
+
++ sigmoid
++ tanh
++ softmax
++ Rectified Linear Unit (ReLU)
++ Leaky ReLU
++ ... and you can customise it to whatever makes sense for your application. In Flux, this is particularly easy!
+
+Good news: we can still perform a gradient descent (or anything similar) while accepting a higher degree of complexity. Notice that these activations serve the purpose of avoiding vanishing and exploding gradients, as well as produce outputs with suited ranges.
+
+Now with a single layer, we only allow a low degree of nonlinearity (determined by the chosen activation). To tackle this problem, there is a straight forward solution: let's stack some layers!
+"""
 
 # ╔═╡ 85db91f9-0e1b-4557-9b9c-cc2390a1907e
 md"""
@@ -316,19 +405,6 @@ function unpack_and_cudify(data, n)
     X, Y = data[1:n, :], data[(n+1):end, :]
     return cu(Float32.(Matrix(X))), cu(Float32.(Matrix(Y)))
 end
-
-# ╔═╡ 242499eb-036e-457c-8f26-58bb6a75e844
-md"""
-## Noisy Data
-
-As real-world data is commonly affected by noise, we add a white noise to the data:
-
-```math
-\begin{equation}
-y_{i} = M x_{i} + p + \nu, \quad \nu \sim \mathcal{N}(0, 1), \quad \nu \in \mathbf{R}^{n_y}.
-\end{equation}
-```
-"""
 
 # ╔═╡ f22aab50-96b7-48c6-993b-a8613a5263c0
 
@@ -354,6 +430,28 @@ md"""
 
 # ╔═╡ 2d5dc63c-437e-47a5-a50f-9fb58de7fc32
 
+
+# ╔═╡ 56f95a4e-49b8-4b81-9cd6-6d632090a068
+begin
+	f1, f2, = 0.7, 0.15
+	ntrain, Xtrain, Ytrain, Xdev, Ydev, Xtest, Ytest = split_data(f1, f2, nm, X, Y)
+end
+
+# ╔═╡ f89822ef-4611-468e-9969-e0eca14a3d58
+begin
+	layer1n = Dense(nx, ny)
+	predictn = Chain(layer1n)
+	psn = params(predictn)
+	loss(x,y) = Flux.Losses.mse(predictn(x), y)
+	trainlossn, devlossn = train_network(10, opt, train_loadern, Xndev, Yndev, psn)
+	plot_loss(ntrain, batch_size, trainlossn, devlossn)
+end
+
+# ╔═╡ 373f5103-9adc-426c-bbcd-d19a511463e6
+loss(x,y) = Flux.Losses.mse(predict(x), y)
+
+# ╔═╡ 264cd113-41a9-4b1e-bfef-314bf042114c
+ntrain, Xntrain, Yntrain, Xndev, Yndev, Xntest, Yntest = split_data(f1, f2, nm, Xn, Yn)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1700,19 +1798,35 @@ version = "3.5.0+0"
 # ╟─4157d2b4-7946-45ce-b77e-ebdc63744594
 # ╟─5f51257d-0296-42c5-8908-a25afbd63bf8
 # ╠═8f5c2f4a-03a9-472f-a0ee-31200d631454
+# ╠═56f95a4e-49b8-4b81-9cd6-6d632090a068
+# ╠═b2a47c06-14b6-4136-ab7f-3adafdc84836
+# ╠═ec6c51e3-bc77-4df5-824e-1ea37963c43d
+# ╠═69a660da-db5b-4ff5-80b3-13ac37f1769c
 # ╟─e80866d2-fa32-40db-871f-fe43734b90a8
 # ╠═0e659769-229c-47ea-8db8-9ab59e750162
 # ╟─ab43a786-4aaa-4d25-8f8f-d77e414f10f9
 # ╠═122a1c6f-5fb5-4045-a297-b57c1f4a15d6
+# ╠═60b84bf0-b566-43f7-858b-27a0bc88a82c
+# ╟─fcac5bcb-5d04-4b86-8426-c03ef117b45c
 # ╠═3f55e36d-314b-4c47-a352-b860035fd353
+# ╠═a769d445-ec6c-4dca-95c5-2eb4a47566a2
 # ╟─32e5074f-29cd-40b5-86a3-13a083478278
 # ╠═a0ef458b-04ad-4612-ac8f-956ff86d377a
 # ╠═5c8c4b65-da47-4627-9bc1-948e5628a75e
 # ╟─077436db-0302-40bc-adf9-6254b40a7311
 # ╠═dfeb22f7-9c26-4e1a-a70d-8f5a27203465
+# ╟─242499eb-036e-457c-8f26-58bb6a75e844
+# ╠═c648fc8f-c32a-4321-8714-f50903a238f3
+# ╠═970566aa-afa9-4e8d-b4d7-f2f1bcbab84b
+# ╠═264cd113-41a9-4b1e-bfef-314bf042114c
+# ╠═9506744e-1b89-4fa9-ad0a-55c1cb0a1105
+# ╟─0e39448d-5880-4f4e-b994-85b185bce0d3
+# ╠═f89822ef-4611-468e-9969-e0eca14a3d58
+# ╠═8dccc75a-8afd-47d4-b25e-0f2542ec9b1a
+# ╠═ed438d19-7926-45e1-83d3-2f4d20455f7b
+# ╠═e6540e9e-86c1-4425-940d-f606f76e6aff
 # ╟─85db91f9-0e1b-4557-9b9c-cc2390a1907e
 # ╠═8b30cdad-1517-4367-8037-4d7ddf5dfc8f
-# ╟─242499eb-036e-457c-8f26-58bb6a75e844
 # ╠═f22aab50-96b7-48c6-993b-a8613a5263c0
 # ╟─31a1aa20-57f5-4463-8d61-82b10c045799
 # ╟─d1c7aa96-989f-4ef6-b99f-3dd591336ae1
