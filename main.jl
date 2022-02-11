@@ -15,10 +15,41 @@ macro bind(def, element)
 end
 
 # ╔═╡ d9ca9886-8410-11ec-0f6b-957729a9c708
-using Flux, CairoMakie, PlutoUI, CUDA, Random, ProgressMeter
+using Flux, CairoMakie, PlutoUI, CUDA, Random, ProgressMeter, LinearAlgebra
 
 # ╔═╡ 4e2c385b-1d4a-4478-949b-4ba5d684ef84
 html"<button onclick='present()'>present</button>" 	# Activating presentation mode.
+
+# ╔═╡ 4cb9993c-424b-49ad-af9b-5261c4fd6fac
+md"""
+## Deep Learning, Machine Learning and AI
+"""
+
+# ╔═╡ 3163f527-a9d0-40c9-b08e-fb151cee34dd
+Show(MIME"image/jpeg"(), read("images/DLoverview.jpeg"))
+
+# ╔═╡ 8a006f3c-ad88-4d21-8914-ebb057bfda12
+md"""
+## Why Did Deep Learning Become so Popular?
+
++ General approximator: you can aplpy it on pretty much any problem.
++ Scalable: dealing with large amount of data/dimensionality is not a problem.
++ Does not plateau with increase of complexity: big difference with other machine learning techniques.
++ Better computation ressources: recent development in GPU performance and cloud computing make it easier to train a model.
++ Packages allowing fast implementation: many ready-to-use frameworks are available, mostly with Python interface: TensorFlow, PyTorch, Theano, Keras... However this leads to a large community of users but a comparatively small one when it comes to understand the underlying principles!
+
+**Examples of Application:**
+
++ Data analysis.
++ Image processing.
++ Time series prediction.
++ Control and system identification (learning the right-hand side of an ODE or even PDE).
++ Anomaly detection.
++ Natural language processing (NLP). Most famous example: GPT-3.
+"""
+
+# ╔═╡ 008bb14c-3bfa-41f5-82b6-321ec4545cb1
+Show(MIME"image/jpg"(), read("images/scalability.jpg"))
 
 # ╔═╡ 822e024f-819f-4b36-8cdb-8ca69174cd95
 md"""
@@ -26,23 +57,24 @@ md"""
 
 In this tutorial, you'll be walked through:
 + An affine regression with a shallow network. This will allow you to understand all the principles on a very simple example with easily verifiable results.
++ The same regression on noisy data.
 + A nonlinear regression with a deeper network. At this stage, you will be able to fully grasp the architecture of the West-Antarctic Tipping Early Recognition Network (WATER-Net).
-+ An example of layerwise relevance propagation (LRP).
++ The common problems that can arise when using deep learning methods.
 + Some previews of more complex architectures.
 
-For this purpose we will use Julia which should is fast, user-freindly, dynamically typed, easily reproducible and open source.
+For this purpose we will use Julia, Pluto as a notebook interface and Flux, one of its DL packages.
 """
 
 # ╔═╡ 76b7ff5f-d9c8-4b31-8100-0aeae0cfaee6
 md"""
-### Affine Regression with Shallow Network
+## Affine Regression with Shallow Network
 
 Making an affine (or linear) regression on some data is a problem for which reliable analytical solutions exist. **An artificial neural network (ANN) is therefore quite a bad choice for solving this problem!** However, such a simple example allows to understand well what happens under the hood. 
 """
 
 # ╔═╡ fdea54b1-06d8-4ea2-814b-c825b9dec7e1
 md"""
-## Importing Packages
+### Importing Packages
 
 + Flux: a deep learning package that allows you to go pretty low-level, while being still user-freindly.
 + Makie: a plotting package with several backend. Here the Cairo one has been chosen.
@@ -50,13 +82,14 @@ md"""
 + CUDA: a package for GPU computation.
 + Random: a package for generating random outputs.
 + ProgressMeter: a package to see the progress of some long-lasting code execution.
++ LinearAlgebra: will provide us the matrix-norm functions.
 """
 
 # ╔═╡ 5036a12a-1563-4431-8f61-6b2c19b602c0
 md"""
 ## Affine Function as Ground Truth
 
-Here we will construct some data that should be fitted by the ANN. To this end we create a random but reproduceable matrix A and bias vector b.
+Here we will construct some data that should be fitted by the ANN. To this end we create a random but reproduceable matrix M and bias vector p.
 """
 
 # ╔═╡ f1cb6788-88f1-4e13-8201-27642d6debd9
@@ -68,19 +101,19 @@ Here we will construct some data that should be fitted by the ANN. To this end w
 # ╔═╡ 432b0747-e0c2-4a0a-bcbb-0ee7ffce6e79
 @bind nm PlutoUI.Slider(100:100:2000, show_value=true, default=1000)
 
-# ╔═╡ 2917a853-6272-4696-b0a1-60cfebd0a50d
-@bind range_param PlutoUI.Slider(1:10, show_value=true, default=1)
+# ╔═╡ 214da52c-47fa-44fd-b735-baf2ab665b5e
+input_range = 10
 
 # ╔═╡ 4a74a7ad-bc6e-488a-91de-2b44df7971de
 begin
 	Random.seed!(1)
-	M = round.( range_param .* 2 .* (Random.rand(ny,nx) .- 0.5), digits=2)
+	M = round.( 2 .* (Random.rand(ny,nx) .- 0.5), digits=2)
 end
 
 # ╔═╡ 39b9785d-6c6e-4175-979c-73b7fabad4e0
 begin
 	Random.seed!(1)
-	p = round.( range_param .* 2 .* (Random.rand(ny) .- 0.5), digits=2)
+	p = round.( 0 .* (Random.rand(ny) .- 0.5), digits=2)
 end
 
 # ╔═╡ c75ad903-cfd0-4696-b180-ec18e48f5b83
@@ -107,9 +140,53 @@ linearmap([4.91, 11.90, 39.32, 2.40])
 # ╔═╡ 94c7cc46-b46c-4bfd-b73a-3730605aeb15
 begin
 	Random.seed!(1)
-	X = 100 .* rand(nx, nm)
+	X = input_range .* rand(nx, nm)
 	Y = mapslices(linearmap, X; dims=1)
 end
+
+# ╔═╡ 5f51257d-0296-42c5-8908-a25afbd63bf8
+md"""
+## Split the Data
+
+Before going to the full training procedure, we perform a common step called *data-splitting*. While a fraction $f_1$ is used for training, a fraction $f_2$ is used to control the generalisation error during the training. Finally a fraction $f_3$ is kept aside to evaluate the generalisation performance on data that was never evaluated by the ANN. Commonly, $f_2 = f_3$ is chosen. Typical values of $f$ are:
++ $f_1 \in [0.5, 0.9]$
++ $f_2, f_3 \in [0.05, 0.25]$
+"""
+
+# ╔═╡ 8f5c2f4a-03a9-472f-a0ee-31200d631454
+function split_data(f1, f2, nm, X, Y)
+	ntrain = Int(round(f1*nm, digits=0))
+	ndev = Int(round((f1+f2)*nm, digits=0))
+	Xtrain, Ytrain = X[:, 1:ntrain], Y[:, 1:ntrain]
+	Xdev, Ydev = X[:, ntrain:ndev], Y[:, ntrain:ndev]
+	Xtest, Ytest = X[:, ndev:nm], Y[:, ndev:nm]
+	return ntrain, Xtrain, Ytrain, Xdev, Ydev, Xtest, Ytest
+end
+
+# ╔═╡ 56f95a4e-49b8-4b81-9cd6-6d632090a068
+begin
+	f1, f2, = 0.7, 0.15
+	ntrain, Xtrain, Ytrain, Xdev, Ydev, Xtest, Ytest = split_data(f1, f2, nm, X, Y)
+end
+
+# ╔═╡ b2a47c06-14b6-4136-ab7f-3adafdc84836
+size(Xtrain), size(Xdev), size(Xtest)
+
+# ╔═╡ e80866d2-fa32-40db-871f-fe43734b90a8
+md"""
+## Build Batches of Training Data
+
+Another data-splitting that is commonly performed is to seperate the training data in batches of size $n_b$. This allows to update the parameters on a small number of experiments, thus avoiding some drawbacks:
++ If $n_b = 1$, we get our previous update method. This is noisy and not well-suited in the vicinity of the minimum.
++ If $n_b = n_m$, updating takes a long time and we miss some noisiness to leave local minima.
+"""
+
+# ╔═╡ 0f8f171a-1e70-4ee9-a242-4933c7588bd1
+@bind batch_size PlutoUI.Slider(10:10:200, show_value=true, default=100)
+
+# ╔═╡ 0e659769-229c-47ea-8db8-9ab59e750162
+train_loader = Flux.Data.DataLoader( (data=Xtrain, label=Ytrain), 
+									  batchsize=batch_size, shuffle=true)
 
 # ╔═╡ 02d772e2-07ed-4b8e-bf01-d7c5472fbdbd
 md"""
@@ -132,7 +209,7 @@ The question now is: can we recover the entries of $A$ and $b$ by only using the
 ```
 
 
-We will now initialise such a layer with random parameters. In deep learning, *parameters* describe any value that can be optimised during the loss minimisation, e.g. $b_1$. In opposition, *hyperparameters* describe numerical values that will not be tuned at training time!
+We will now initialise such a layer with random parameters. In deep learning, *parameters* describe any value that can be optimised during the loss minimisation, e.g. $b_1$. In opposition, *hyperparameters* describe numerical values that will not be tuned at training time! For instance we can think of the dimension of the matrix W.
 """
 
 # ╔═╡ 6679b679-7246-4750-b731-17125f38d52a
@@ -143,6 +220,9 @@ end
 
 # ╔═╡ 6c98fb25-29af-4ace-87e0-f60f28790b24
 predict = Chain(layer1)
+
+# ╔═╡ 2976c8cc-d623-4a03-9d69-d5b9f738360e
+predict.layers[1].W, predict.layers[1].b
 
 # ╔═╡ a541839d-932d-4c2a-af80-9cc2b5f787a7
 md"""
@@ -165,6 +245,12 @@ L(\hat{Y}, Y) &=& \dfrac{1}{n_m} \underset{\hat{y}, y}{\Sigma} l(\hat{y}, y).
 \end{eqnarray}
 ```
 """
+
+# ╔═╡ 373f5103-9adc-426c-bbcd-d19a511463e6
+loss(x,y) = Flux.Losses.mse(predict(x), y)
+
+# ╔═╡ 06fbb7f6-10cd-4ada-bacf-2e44e5947f81
+loss(X[:,1], Y[:,1])
 
 # ╔═╡ f2d6ad9c-1348-4955-a390-ea23e998c734
 md"""
@@ -190,54 +276,25 @@ with $\alpha \in (0,1)$ the so-called *learning rate*. Computing the gradient ca
 This gets quite tedious for large systems... but luckily, it is handled by any deep learning package.
 """
 
+# ╔═╡ d5e60ca5-cfce-40db-b284-d9a278f6d73e
+begin
+	α = 1e-2
+	ps = params(predict)
+	gs(x,y) = Flux.gradient(() -> loss(x,y), ps)
+	grad1 = gs(X[:,1], Y[:,1])
+	dW = grad1.grads[grad1.params[1]]
+	db = grad1.grads[grad1.params[2]]
+	predict.layers[1].W .-= α .* dW
+	predict.layers[1].b .-= α .* db
+end
+
+# ╔═╡ 6254c67c-f4ce-4286-adfa-ab13c1555178
+loss(X[:,1], Y[:,1])
+
 # ╔═╡ 4157d2b4-7946-45ce-b77e-ebdc63744594
 md"""
 Hurray! The cost decreased and if we repeat this several times, we might get a near-zero loss!
 """
-
-# ╔═╡ 5f51257d-0296-42c5-8908-a25afbd63bf8
-md"""
-## Split the Data
-
-Before going to the full training procedure, we perform a common step called *data-splitting*. While a fraction $f_1$ is used for training, a fraction $f_2$ is used to control the generalisation error during the training. Finally a fraction $f_3$ is kept aside to evaluate the generalisation performance on data that was never evaluated by the ANN. Commonly, $f_2 = f_3$ is chosen. Typical values of $f$ are:
-+ $f_1 \in [0.5, 0.9]$
-+ $f_2, f_3 \in [0.05, 0.25]$
-"""
-
-# ╔═╡ 8f5c2f4a-03a9-472f-a0ee-31200d631454
-function split_data(f1, f2, nm, X, Y)
-	ntrain = Int(round(f1*nm, digits=0))
-	ndev = Int(round((f1+f2)*nm, digits=0))
-	Xtrain, Ytrain = X[:, 1:ntrain], Y[:, 1:ntrain]
-	Xdev, Ydev = X[:, ntrain:ndev], Y[:, ntrain:ndev]
-	Xtest, Ytest = X[:, ndev:nm], Y[:, ndev:nm]
-	return ntrain, Xtrain, Ytrain, Xdev, Ydev, Xtest, Ytest
-end
-
-# ╔═╡ b2a47c06-14b6-4136-ab7f-3adafdc84836
-size(Xtrain)
-
-# ╔═╡ ec6c51e3-bc77-4df5-824e-1ea37963c43d
-size(Xdev)
-
-# ╔═╡ 69a660da-db5b-4ff5-80b3-13ac37f1769c
-size(Xtest)
-
-# ╔═╡ e80866d2-fa32-40db-871f-fe43734b90a8
-md"""
-## Build Batches of Training Data
-
-Another data-splitting that is commonly performed is to seperate the training data in batches of size $n_b$. This allows to update the parameters on a small number of experiments, thus avoiding some drawbacks:
-+ If $n_b = 1$, we get our previous update method. This is noisy and not well-suited in the vicinity of the minimum.
-+ If $n_b = n_m$, updating takes a long time and we miss some noisiness to leave local minima.
-"""
-
-# ╔═╡ 0e659769-229c-47ea-8db8-9ab59e750162
-begin
-	batch_size = 100
-	train_loader = Flux.Data.DataLoader( (data=Xtrain, label=Ytrain), 
-										  batchsize=batch_size, shuffle=true)
-end
 
 # ╔═╡ ab43a786-4aaa-4d25-8f8f-d77e414f10f9
 md"""
@@ -246,9 +303,40 @@ md"""
 Now we want to stack everything we have seen until now to obtain our linear regression!
 """
 
+# ╔═╡ 312d7fe3-216b-4b3d-98bb-498138a9aba4
+@bind n_epochs PlutoUI.Slider(1:20, show_value=true, default=10)
+
+# ╔═╡ 122a1c6f-5fb5-4045-a297-b57c1f4a15d6
+function train_network(ne::Int, optimiser, loader, Xd, Yd, p, l::Function)
+	tloss, dloss = [], []
+	for epoch in 1:ne
+		for (x,y) in loader
+			g = Flux.gradient(p) do
+				l(x,y)
+			end
+			Flux.update!(optimiser, p, g)
+			append!(tloss, l(x,y))
+			append!(dloss, l(Xd, Yd))
+		end
+	end
+	return tloss, dloss
+end
+
+# ╔═╡ 60b84bf0-b566-43f7-858b-27a0bc88a82c
+begin
+	# opt = Descent(α)
+	opt = RADAM()
+	@time trainloss, devloss = train_network(n_epochs, opt, train_loader, Xdev, Ydev, ps, loss)
+end
+
 # ╔═╡ fcac5bcb-5d04-4b86-8426-c03ef117b45c
 md"""
 From worker 2:      0.007323 seconds (26.61 k allocations: 12.665 MiB)
+"""
+
+# ╔═╡ 614f8685-75d9-4b98-8096-65d0e133d2b6
+md"""
+## Results Analysis
 """
 
 # ╔═╡ 3f55e36d-314b-4c47-a352-b860035fd353
@@ -262,26 +350,14 @@ function plot_loss(ntrain, batch_size, trainloss, devloss)
 	fig
 end
 
-# ╔═╡ 32e5074f-29cd-40b5-86a3-13a083478278
-md"""
-## Comparison with Ground Truth
-
-Now that we obtained quite a low error, we want to verify whether we recovered the parameters of the ground truth:
-"""
+# ╔═╡ a769d445-ec6c-4dca-95c5-2eb4a47566a2
+@time plot_loss(ntrain, batch_size, trainloss, devloss)
 
 # ╔═╡ a0ef458b-04ad-4612-ac8f-956ff86d377a
-predict.layers[1].W
+predict.layers[1].W, M
 
-# ╔═╡ 5c8c4b65-da47-4627-9bc1-948e5628a75e
-M
-
-# ╔═╡ 077436db-0302-40bc-adf9-6254b40a7311
-md"""
-For larger models, we could prefer looking at the 2-norm of the matrix:
-"""
-
-# ╔═╡ dfeb22f7-9c26-4e1a-a70d-8f5a27203465
-norm2(W-M)
+# ╔═╡ a764e67b-f031-4ec1-acf6-134785bdf6b0
+predict.layers[1].b, p
 
 # ╔═╡ 242499eb-036e-457c-8f26-58bb6a75e844
 md"""
@@ -304,9 +380,12 @@ end
 # ╔═╡ 970566aa-afa9-4e8d-b4d7-f2f1bcbab84b
 begin
 	Random.seed!(1)
-	Xn = 100 .* rand(nx, nm)
+	Xn = xrange .* rand(nx, nm)
 	Yn = mapslices(noisy_linearmap, X; dims=1)
 end
+
+# ╔═╡ 264cd113-41a9-4b1e-bfef-314bf042114c
+ntrainn, Xntrain, Yntrain, Xndev, Yndev, Xntest, Yntest = split_data(f1, f2, nm, Xn, Yn)
 
 # ╔═╡ 9506744e-1b89-4fa9-ad0a-55c1cb0a1105
 train_loadern = Flux.Data.DataLoader( (data=Xntrain, label=Yntrain), 
@@ -314,81 +393,124 @@ train_loadern = Flux.Data.DataLoader( (data=Xntrain, label=Yntrain),
 
 # ╔═╡ 0e39448d-5880-4f4e-b994-85b185bce0d3
 md"""
-### Build a Blank Model & Train it
+## Build a Blank Model & Train it
 """
 
-# ╔═╡ 06fbb7f6-10cd-4ada-bacf-2e44e5947f81
-loss(X[:,1], Y[:,1])
-
-# ╔═╡ d5e60ca5-cfce-40db-b284-d9a278f6d73e
+# ╔═╡ f89822ef-4611-468e-9969-e0eca14a3d58
 begin
-	ps = params(predict)
-	gs(x,y) = Flux.gradient(() -> loss(x,y), ps)
-	grad1 = gs(X[:,1], Y[:,1])
-	dW = grad1.grads[grad1.params[1]]
-	db = grad1.grads[grad1.params[2]]
-	predict.layers[1].W .-= 1e-4 .* dW
-	predict.layers[1].b .-= 1e-4 .* db
+	layer1n = Dense(nx, ny)
+	predictn = Chain(layer1n)
+	psn = params(predictn)
+	lossn(x,y) = Flux.Losses.mse(predictn(x), y)
+	optn = Descent(1e-4)
+	trainlossn, devlossn = train_network(n_epochs, optn, train_loadern, Xndev, Yndev, psn, lossn)
+	plot_loss(ntrainn, batch_size, trainlossn, devlossn)
 end
 
-# ╔═╡ 6254c67c-f4ce-4286-adfa-ab13c1555178
-loss(X[:,1], Y[:,1])
+# ╔═╡ 2e8120f9-2c3b-4f7a-9e12-8233fba3578d
+md"""
+To compare the error in the clean and in the noisy case, we take the 2-norm of the matrix difference:
+"""
 
-# ╔═╡ 122a1c6f-5fb5-4045-a297-b57c1f4a15d6
-function train_network(n_epochs, optimiser, train_loader, Xdev, Ydev, ps)
-	trainloss, devloss = [], []
-	for epoch in 1:n_epochs
-		for (x,y) in train_loader
-			g = Flux.gradient(ps) do
-				loss(x,y)
-			end
-			Flux.update!(optimiser, ps, g)
-			append!(trainloss, loss(x,y))
-			append!(devloss, loss(Xdev, Ydev))
-		end
-	end
-	return trainloss, devloss
-end
+# ╔═╡ 47e703f6-e2a1-44c9-a3a9-4b87f68c00c5
+norm(predict.layers[1].W-M, 2), norm(predictn.layers[1].W-M, 2)
 
-# ╔═╡ 60b84bf0-b566-43f7-858b-27a0bc88a82c
-begin
-	opt = Descent(1e-4)
-	@time trainloss, devloss = train_network(10, opt, train_loader, Xdev, Ydev, ps)
-end
+# ╔═╡ d4777405-ba8f-4593-acd4-678bd5bda3e2
+md"""
+What if we don't know the ground truth matrix $M$? We kept the test data especially for this!
+"""
 
-# ╔═╡ a769d445-ec6c-4dca-95c5-2eb4a47566a2
-plot_loss(ntrain, batch_size, trainloss, devloss)
+# ╔═╡ 22f0b115-bca8-412a-97c0-0d102c4b646d
+loss(Xtest, Ytest), lossn(Xntest, Yntest)
 
 # ╔═╡ 8dccc75a-8afd-47d4-b25e-0f2542ec9b1a
 md"""
-## Fitting Nonlinear Data
+## Generate Nonlinear Data
 
 First, let us generate some data based on a nonlinear function:
+
+$f(x) = \sum_{i} x_i^{e_i},$
+
+with $e_i \in [0,1]$ some randomly sampled but fixed exponents.
 """
+
+# ╔═╡ 87b6fdf8-6fa4-404c-b074-f5e940b6e6fb
+begin
+	Random.seed!(1)
+	exponents = rand(nx)
+end
 
 # ╔═╡ ed438d19-7926-45e1-83d3-2f4d20455f7b
 function nonlinearmap(x)
-	return x[1] .^ 2
+	return sum(x .^ exponents)
+end
+
+# ╔═╡ 86fe5883-91d6-42be-b544-90fde2cbad9b
+begin
+	Random.seed!(1)
+	Xnl = xrange .* rand(nx, nm)
+	Ynl = mapslices(nonlinearmap, Xnl; dims=1)
+end
+
+# ╔═╡ a6926a79-252c-41da-a9e3-1f2f9ab9bf21
+begin
+	ntrainnl, Xnltrain, Ynltrain, Xnldev, Ynldev, Xnltest, Ynltest = split_data(f1, f2, nm, Xnl, Ynl)
+	train_loadernl = Flux.Data.DataLoader( (data=Xnltrain, label=Ynltrain), 
+									   batchsize=batch_size, shuffle=true)
 end
 
 # ╔═╡ e6540e9e-86c1-4425-940d-f606f76e6aff
 md"""
+## Towards a More Elaborate NN
+
 Fitting nonlinear data can be achieved by applying a so-called *activation* on the output of a dense layer:
 
 $z = \Phi(W*x+b).$
 
 Common choices for $\Phi$ are:
 
-+ sigmoid
-+ tanh
++ sigmoid or tanh
 + softmax
-+ Rectified Linear Unit (ReLU)
-+ Leaky ReLU
++ Rectified Linear Unit (ReLU) or Leaky ReLU
 + ... and you can customise it to whatever makes sense for your application. In Flux, this is particularly easy!
 
 Good news: we can still perform a gradient descent (or anything similar) while accepting a higher degree of complexity. Notice that these activations serve the purpose of avoiding vanishing and exploding gradients, as well as produce outputs with suited ranges.
 
-Now with a single layer, we only allow a low degree of nonlinearity (determined by the chosen activation). To tackle this problem, there is a straight forward solution: let's stack some layers!
+Now with a single layer, we only allow a low degree of nonlinearity (determined by the chosen activation). To tackle this problem, there is a straight forward solution: let's stack some layers! This results in nothing more than having a matrix $W^{(l)}$, a bias $b^{(l)}$ and an activation $\Phi^{(l)}$ for each layer $l \in {1, ..., L}$.
+
+Thanks to computational graphs, computing the gradient of such stacked layers can be easily done!
+"""
+
+# ╔═╡ 0e9a77d8-4108-41b6-8c0e-2cf5b92c7baf
+begin
+	layer1nl = Dense(nx, nx, leakyrelu)
+	layer2nl = Dense(nx, nx, leakyrelu)
+	layer3nl = Dense(nx, nx, leakyrelu)
+	layer4nl = Dense(nx, 1)
+	predictnl = Chain(layer1nl, layer2nl, layer3nl, layer4nl)
+	psnl = params(predictnl)
+	optnl = RADAM(1e-4, (0.9, 0.8))
+	lossnl(x,y) = Flux.Losses.mse(predictnl(x), y)
+	lossnl(Xnl[:,1], Ynl[1])
+end
+
+# ╔═╡ ab47a8fc-b36a-4b02-891c-af773ab752e1
+trainlossnl, devlossnl = train_network(n_epochs, optnl, train_loadernl, 
+										   Xnldev, Ynldev, psnl, lossnl)
+
+# ╔═╡ 31fc72c5-3791-4c6c-b331-bac1a6d7357f
+lossnl(Xnl[:,1], Ynl[1])
+
+
+# ╔═╡ ace85058-c14f-44db-88d8-51273b8fb0f7
+plot_loss(ntrainnl, batch_size, trainlossnl, devlossnl)
+
+# ╔═╡ 862737ee-e7ca-45f4-ba93-5571393b6571
+md"""
+## Why Deepen Instead of Broaden?
+
++ allows to modify dimensions to achieve some nice properties.
++ 
 """
 
 # ╔═╡ 85db91f9-0e1b-4557-9b9c-cc2390a1907e
@@ -428,30 +550,50 @@ md"""
 + Any more complex architecture of ANN relies on the same basic principles!
 """
 
+# ╔═╡ 5e117cb5-c360-47fd-be60-41bfcb076550
+md"""
+## What Could Possibly Go Wrong?
+
+### Optimisation-Related Problems
++ Exploding or vanishing gradient. Both particularly likely in deep networks! While the former one is a limited problem by simply applaying gradient clipping, the latter one means we are unable to learn and has more elaborated and problem-specific solutions.
++ Loss is not adapted to your actual requirements.
++ Local minima. Less likely with increasing complexity.
+
+### Structure-Related Problems
++ The structure is too simple to perform well, even on the training data.
++ Basic structure might be good, but sometimes you need to scale it up! Example: ConvLSTM network for pedestrian motion prediction with more than a million parameters.
+
+### Data-Related Problems
++ Data too sparse or not well pre-processed. Always compare the number of parameter you want to train and the number of data points.
++ Lack of generality = perform well on data but not on real applications. Underlying problem: overfitting or data provided by different distributions.
+"""
+
+# ╔═╡ 08b91e46-6330-4e7b-8522-c119ac7e0298
+md"""
+## Example: Pedestrian Motion Prediction
+"""
+
+# ╔═╡ fe35dc87-3c0b-4568-974c-05611fbf5835
+Show(MIME"image/png"(), read("images/Hcompare_GPM.png"))
+
 # ╔═╡ 2d5dc63c-437e-47a5-a50f-9fb58de7fc32
+md"""
+## Important Structures You Might Hear Of
 
++ Recurrent Neural Networks (RNN). Particularly suited to tackle the problem of gradient vanishing in time series analysis. The most famous of them: LSTM and GRU.
++ Convolutional Neural Networks (CNN). Particularly suited for image processing because it tackles the curse of dimensionality and has nice invariance properties.
++ Convolutional Recurent Neural Networks (CRNN). Particularly well suited for video analysis/prediction
++ GAN
++ Auto-encoders
+"""
 
-# ╔═╡ 56f95a4e-49b8-4b81-9cd6-6d632090a068
-begin
-	f1, f2, = 0.7, 0.15
-	ntrain, Xtrain, Ytrain, Xdev, Ydev, Xtest, Ytest = split_data(f1, f2, nm, X, Y)
-end
+# ╔═╡ 85376192-e072-40e1-9201-8fb5650696bc
+md"""
+## The ConvLSTM Cell
+"""
 
-# ╔═╡ f89822ef-4611-468e-9969-e0eca14a3d58
-begin
-	layer1n = Dense(nx, ny)
-	predictn = Chain(layer1n)
-	psn = params(predictn)
-	loss(x,y) = Flux.Losses.mse(predictn(x), y)
-	trainlossn, devlossn = train_network(10, opt, train_loadern, Xndev, Yndev, psn)
-	plot_loss(ntrain, batch_size, trainlossn, devlossn)
-end
-
-# ╔═╡ 373f5103-9adc-426c-bbcd-d19a511463e6
-loss(x,y) = Flux.Losses.mse(predict(x), y)
-
-# ╔═╡ 264cd113-41a9-4b1e-bfef-314bf042114c
-ntrain, Xntrain, Yntrain, Xndev, Yndev, Xntest, Yntest = split_data(f1, f2, nm, Xn, Yn)
+# ╔═╡ a5da3117-21b2-4355-a1a6-33eaf0e5cf3a
+Show(MIME"image/png"(), read("images/ConvLSTM.png"))
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -459,6 +601,7 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -1771,6 +1914,10 @@ version = "3.5.0+0"
 
 # ╔═╡ Cell order:
 # ╟─4e2c385b-1d4a-4478-949b-4ba5d684ef84
+# ╟─4cb9993c-424b-49ad-af9b-5261c4fd6fac
+# ╟─3163f527-a9d0-40c9-b08e-fb151cee34dd
+# ╟─8a006f3c-ad88-4d21-8914-ebb057bfda12
+# ╟─008bb14c-3bfa-41f5-82b6-321ec4545cb1
 # ╟─822e024f-819f-4b36-8cdb-8ca69174cd95
 # ╟─76b7ff5f-d9c8-4b31-8100-0aeae0cfaee6
 # ╟─fdea54b1-06d8-4ea2-814b-c825b9dec7e1
@@ -1779,16 +1926,24 @@ version = "3.5.0+0"
 # ╠═f1cb6788-88f1-4e13-8201-27642d6debd9
 # ╠═a9f133e5-9eec-497b-ab75-30593eaa8ba7
 # ╠═432b0747-e0c2-4a0a-bcbb-0ee7ffce6e79
-# ╠═2917a853-6272-4696-b0a1-60cfebd0a50d
+# ╠═214da52c-47fa-44fd-b735-baf2ab665b5e
 # ╠═4a74a7ad-bc6e-488a-91de-2b44df7971de
 # ╠═39b9785d-6c6e-4175-979c-73b7fabad4e0
 # ╟─c75ad903-cfd0-4696-b180-ec18e48f5b83
 # ╠═7048e5ff-483b-4d39-846a-ecbfe64cef50
 # ╠═9cbebc46-2af8-4631-b481-762b53bafad6
 # ╠═94c7cc46-b46c-4bfd-b73a-3730605aeb15
+# ╟─5f51257d-0296-42c5-8908-a25afbd63bf8
+# ╠═8f5c2f4a-03a9-472f-a0ee-31200d631454
+# ╠═56f95a4e-49b8-4b81-9cd6-6d632090a068
+# ╠═b2a47c06-14b6-4136-ab7f-3adafdc84836
+# ╟─e80866d2-fa32-40db-871f-fe43734b90a8
+# ╠═0f8f171a-1e70-4ee9-a242-4933c7588bd1
+# ╠═0e659769-229c-47ea-8db8-9ab59e750162
 # ╟─02d772e2-07ed-4b8e-bf01-d7c5472fbdbd
 # ╠═6679b679-7246-4750-b731-17125f38d52a
 # ╠═6c98fb25-29af-4ace-87e0-f60f28790b24
+# ╠═2976c8cc-d623-4a03-9d69-d5b9f738360e
 # ╟─a541839d-932d-4c2a-af80-9cc2b5f787a7
 # ╠═373f5103-9adc-426c-bbcd-d19a511463e6
 # ╠═06fbb7f6-10cd-4ada-bacf-2e44e5947f81
@@ -1796,25 +1951,16 @@ version = "3.5.0+0"
 # ╠═d5e60ca5-cfce-40db-b284-d9a278f6d73e
 # ╠═6254c67c-f4ce-4286-adfa-ab13c1555178
 # ╟─4157d2b4-7946-45ce-b77e-ebdc63744594
-# ╟─5f51257d-0296-42c5-8908-a25afbd63bf8
-# ╠═8f5c2f4a-03a9-472f-a0ee-31200d631454
-# ╠═56f95a4e-49b8-4b81-9cd6-6d632090a068
-# ╠═b2a47c06-14b6-4136-ab7f-3adafdc84836
-# ╠═ec6c51e3-bc77-4df5-824e-1ea37963c43d
-# ╠═69a660da-db5b-4ff5-80b3-13ac37f1769c
-# ╟─e80866d2-fa32-40db-871f-fe43734b90a8
-# ╠═0e659769-229c-47ea-8db8-9ab59e750162
 # ╟─ab43a786-4aaa-4d25-8f8f-d77e414f10f9
+# ╠═312d7fe3-216b-4b3d-98bb-498138a9aba4
 # ╠═122a1c6f-5fb5-4045-a297-b57c1f4a15d6
 # ╠═60b84bf0-b566-43f7-858b-27a0bc88a82c
 # ╟─fcac5bcb-5d04-4b86-8426-c03ef117b45c
+# ╟─614f8685-75d9-4b98-8096-65d0e133d2b6
 # ╠═3f55e36d-314b-4c47-a352-b860035fd353
 # ╠═a769d445-ec6c-4dca-95c5-2eb4a47566a2
-# ╟─32e5074f-29cd-40b5-86a3-13a083478278
 # ╠═a0ef458b-04ad-4612-ac8f-956ff86d377a
-# ╠═5c8c4b65-da47-4627-9bc1-948e5628a75e
-# ╟─077436db-0302-40bc-adf9-6254b40a7311
-# ╠═dfeb22f7-9c26-4e1a-a70d-8f5a27203465
+# ╠═a764e67b-f031-4ec1-acf6-134785bdf6b0
 # ╟─242499eb-036e-457c-8f26-58bb6a75e844
 # ╠═c648fc8f-c32a-4321-8714-f50903a238f3
 # ╠═970566aa-afa9-4e8d-b4d7-f2f1bcbab84b
@@ -1822,14 +1968,31 @@ version = "3.5.0+0"
 # ╠═9506744e-1b89-4fa9-ad0a-55c1cb0a1105
 # ╟─0e39448d-5880-4f4e-b994-85b185bce0d3
 # ╠═f89822ef-4611-468e-9969-e0eca14a3d58
-# ╠═8dccc75a-8afd-47d4-b25e-0f2542ec9b1a
+# ╟─2e8120f9-2c3b-4f7a-9e12-8233fba3578d
+# ╠═47e703f6-e2a1-44c9-a3a9-4b87f68c00c5
+# ╟─d4777405-ba8f-4593-acd4-678bd5bda3e2
+# ╠═22f0b115-bca8-412a-97c0-0d102c4b646d
+# ╟─8dccc75a-8afd-47d4-b25e-0f2542ec9b1a
+# ╠═87b6fdf8-6fa4-404c-b074-f5e940b6e6fb
 # ╠═ed438d19-7926-45e1-83d3-2f4d20455f7b
-# ╠═e6540e9e-86c1-4425-940d-f606f76e6aff
+# ╠═86fe5883-91d6-42be-b544-90fde2cbad9b
+# ╠═a6926a79-252c-41da-a9e3-1f2f9ab9bf21
+# ╟─e6540e9e-86c1-4425-940d-f606f76e6aff
+# ╠═0e9a77d8-4108-41b6-8c0e-2cf5b92c7baf
+# ╠═ab47a8fc-b36a-4b02-891c-af773ab752e1
+# ╠═31fc72c5-3791-4c6c-b331-bac1a6d7357f
+# ╠═ace85058-c14f-44db-88d8-51273b8fb0f7
+# ╠═862737ee-e7ca-45f4-ba93-5571393b6571
 # ╟─85db91f9-0e1b-4557-9b9c-cc2390a1907e
 # ╠═8b30cdad-1517-4367-8037-4d7ddf5dfc8f
 # ╠═f22aab50-96b7-48c6-993b-a8613a5263c0
 # ╟─31a1aa20-57f5-4463-8d61-82b10c045799
 # ╟─d1c7aa96-989f-4ef6-b99f-3dd591336ae1
+# ╠═5e117cb5-c360-47fd-be60-41bfcb076550
+# ╟─08b91e46-6330-4e7b-8522-c119ac7e0298
+# ╠═fe35dc87-3c0b-4568-974c-05611fbf5835
 # ╠═2d5dc63c-437e-47a5-a50f-9fb58de7fc32
+# ╟─85376192-e072-40e1-9201-8fb5650696bc
+# ╠═a5da3117-21b2-4355-a1a6-33eaf0e5cf3a
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
