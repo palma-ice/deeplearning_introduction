@@ -96,13 +96,13 @@ Here we will construct some data that should be fitted by the ANN. To this end w
 @bind nx PlutoUI.Slider(2:2:20, show_value=true, default=4)
 
 # ╔═╡ a9f133e5-9eec-497b-ab75-30593eaa8ba7
-@bind ny PlutoUI.Slider(2:2:20, show_value=true, default=4)
+@bind ny PlutoUI.Slider(1:1:20, show_value=true, default=1)
 
 # ╔═╡ 432b0747-e0c2-4a0a-bcbb-0ee7ffce6e79
 @bind nm PlutoUI.Slider(100:100:2000, show_value=true, default=1000)
 
 # ╔═╡ 214da52c-47fa-44fd-b735-baf2ab665b5e
-input_range = 10
+input_range = 100
 
 # ╔═╡ 4a74a7ad-bc6e-488a-91de-2b44df7971de
 begin
@@ -110,28 +110,22 @@ begin
 	M = round.( 2 .* (Random.rand(ny,nx) .- 0.5), digits=2)
 end
 
-# ╔═╡ 39b9785d-6c6e-4175-979c-73b7fabad4e0
-begin
-	Random.seed!(1)
-	p = round.( 0 .* (Random.rand(ny) .- 0.5), digits=2)
-end
-
 # ╔═╡ c75ad903-cfd0-4696-b180-ec18e48f5b83
 md"""
 ## Generating Data
 
-Now we create some input data $X = [x_1, x_2, ..., x_{n_m}]$ and compute the corresponding output $Y = [y_1, y_2, ..., y_{n_m}]$ of the affine mapping:
+Now we create some input data $X = [x_1, x_2, ..., x_{n_m}]$ and compute the corresponding output $Y = [y_1, y_2, ..., y_{n_m}]$ of the linear mapping:
 
 ```math
 \begin{equation}
-y_{i} = M x_{i} + p, \quad x_i \in \mathbf{R}^{n_x}, \quad y_{i} \in \mathbf{R}^{n_y}.
+y_{i} = M x_{i}, \quad x_i \in \mathbf{R}^{n_x}, \quad y_{i} \in \mathbf{R}^{n_y}.
 \end{equation}
 ```
 """
 
 # ╔═╡ 7048e5ff-483b-4d39-846a-ecbfe64cef50
 function linearmap(x)
-	return M * x .+ p
+	return M * x
 end
 
 # ╔═╡ 9cbebc46-2af8-4631-b481-762b53bafad6
@@ -214,15 +208,12 @@ We will now initialise such a layer with random parameters. In deep learning, *p
 
 # ╔═╡ 6679b679-7246-4750-b731-17125f38d52a
 begin
-	layer1 = Dense(nx, ny)		# Create the layer
-	reshape(layer1.W, (nx,ny))	# Display values of initialisation
+	layer1 = Dense(nx, ny, bias=false)		# Create the layer
+	reshape(layer1.W, (nx,ny))				# Display values of initialisation
 end
 
 # ╔═╡ 6c98fb25-29af-4ace-87e0-f60f28790b24
 predict = Chain(layer1)
-
-# ╔═╡ 2976c8cc-d623-4a03-9d69-d5b9f738360e
-predict.layers[1].W, predict.layers[1].b
 
 # ╔═╡ a541839d-932d-4c2a-af80-9cc2b5f787a7
 md"""
@@ -278,14 +269,12 @@ This gets quite tedious for large systems... but luckily, it is handled by any d
 
 # ╔═╡ d5e60ca5-cfce-40db-b284-d9a278f6d73e
 begin
-	α = 1e-2
+	α = 1e-4
 	ps = params(predict)
 	gs(x,y) = Flux.gradient(() -> loss(x,y), ps)
 	grad1 = gs(X[:,1], Y[:,1])
 	dW = grad1.grads[grad1.params[1]]
-	db = grad1.grads[grad1.params[2]]
 	predict.layers[1].W .-= α .* dW
-	predict.layers[1].b .-= α .* db
 end
 
 # ╔═╡ 6254c67c-f4ce-4286-adfa-ab13c1555178
@@ -304,7 +293,7 @@ Now we want to stack everything we have seen until now to obtain our linear regr
 """
 
 # ╔═╡ 312d7fe3-216b-4b3d-98bb-498138a9aba4
-@bind n_epochs PlutoUI.Slider(1:20, show_value=true, default=10)
+@bind n_epochs PlutoUI.Slider(2:2:50, show_value=true, default=20)
 
 # ╔═╡ 122a1c6f-5fb5-4045-a297-b57c1f4a15d6
 function train_network(ne::Int, optimiser, loader, Xd, Yd, p, l::Function)
@@ -324,8 +313,7 @@ end
 
 # ╔═╡ 60b84bf0-b566-43f7-858b-27a0bc88a82c
 begin
-	# opt = Descent(α)
-	opt = RADAM()
+	opt = Descent(α)
 	@time trainloss, devloss = train_network(n_epochs, opt, train_loader, Xdev, Ydev, ps, loss)
 end
 
@@ -356,9 +344,6 @@ end
 # ╔═╡ a0ef458b-04ad-4612-ac8f-956ff86d377a
 predict.layers[1].W, M
 
-# ╔═╡ a764e67b-f031-4ec1-acf6-134785bdf6b0
-predict.layers[1].b, p
-
 # ╔═╡ 242499eb-036e-457c-8f26-58bb6a75e844
 md"""
 ## Noisy Data
@@ -367,20 +352,20 @@ As real-world data is commonly affected by noise, we add a white noise to the da
 
 ```math
 \begin{equation}
-y_{i} = M x_{i} + p + \nu, \quad \nu \sim \mathcal{N}(0, 1), \quad \nu \in \mathbf{R}^{n_y}.
+y_{i} = M x_{i} + \nu, \quad \nu \sim \mathcal{N}(0, 1), \quad \nu \in \mathbf{R}^{n_y}.
 \end{equation}
 ```
 """
 
 # ╔═╡ c648fc8f-c32a-4321-8714-f50903a238f3
 function noisy_linearmap(x)
-	return M * x .+ p + randn(ny)
+	return M * x .+ (0.5 .+ randn(ny))
 end
 
 # ╔═╡ 970566aa-afa9-4e8d-b4d7-f2f1bcbab84b
 begin
 	Random.seed!(1)
-	Xn = xrange .* rand(nx, nm)
+	Xn = input_range .* rand(nx, nm)
 	Yn = mapslices(noisy_linearmap, X; dims=1)
 end
 
@@ -402,10 +387,12 @@ begin
 	predictn = Chain(layer1n)
 	psn = params(predictn)
 	lossn(x,y) = Flux.Losses.mse(predictn(x), y)
-	optn = Descent(1e-4)
-	trainlossn, devlossn = train_network(n_epochs, optn, train_loadern, Xndev, Yndev, psn, lossn)
+	trainlossn, devlossn = train_network(n_epochs, opt, train_loadern, Xndev, Yndev, psn, lossn)
 	plot_loss(ntrainn, batch_size, trainlossn, devlossn)
 end
+
+# ╔═╡ 6d141430-ee39-4c84-a0a8-5b8becccfc3c
+predictn.layers[1].W, M
 
 # ╔═╡ 2e8120f9-2c3b-4f7a-9e12-8233fba3578d
 md"""
@@ -448,7 +435,7 @@ end
 # ╔═╡ 86fe5883-91d6-42be-b544-90fde2cbad9b
 begin
 	Random.seed!(1)
-	Xnl = xrange .* rand(nx, nm)
+	Xnl = input_range .* rand(nx, nm)
 	Ynl = mapslices(nonlinearmap, Xnl; dims=1)
 end
 
@@ -486,8 +473,17 @@ begin
 	layer1nl = Dense(nx, nx, leakyrelu)
 	layer2nl = Dense(nx, nx, leakyrelu)
 	layer3nl = Dense(nx, nx, leakyrelu)
-	layer4nl = Dense(nx, 1)
-	predictnl = Chain(layer1nl, layer2nl, layer3nl, layer4nl)
+	layer4nl = Dense(nx, nx, leakyrelu)
+	layer5nl = Dense(nx, nx, leakyrelu)
+	layer6nl = Dense(nx, 1)
+	predictnl = Chain(layer1nl, layer2nl, layer3nl, layer4nl, layer5nl, layer6nl)
+end
+
+# ╔═╡ 9387b001-a175-4aa9-918d-8bd83b465348
+@bind nln_epochs PlutoUI.Slider(10:10:1000, show_value=true, default=10)
+
+# ╔═╡ 3c8a043b-1602-44f8-ba0e-c6f3a40c0dde
+begin
 	psnl = params(predictnl)
 	optnl = RADAM(1e-4, (0.9, 0.8))
 	lossnl(x,y) = Flux.Losses.mse(predictnl(x), y)
@@ -495,7 +491,7 @@ begin
 end
 
 # ╔═╡ ab47a8fc-b36a-4b02-891c-af773ab752e1
-trainlossnl, devlossnl = train_network(n_epochs, optnl, train_loadernl, 
+trainlossnl, devlossnl = train_network(nln_epochs, optnl, train_loadernl, 
 										   Xnldev, Ynldev, psnl, lossnl)
 
 # ╔═╡ 31fc72c5-3791-4c6c-b331-bac1a6d7357f
@@ -505,40 +501,22 @@ lossnl(Xnl[:,1], Ynl[1])
 # ╔═╡ ace85058-c14f-44db-88d8-51273b8fb0f7
 plot_loss(ntrainnl, batch_size, trainlossnl, devlossnl)
 
-# ╔═╡ 862737ee-e7ca-45f4-ba93-5571393b6571
-md"""
-## Why Deepen Instead of Broaden?
-
-+ allows to modify dimensions to achieve some nice properties.
-+ 
-"""
-
-# ╔═╡ 85db91f9-0e1b-4557-9b9c-cc2390a1907e
-md"""
-## GPU Parallelisation
-
-Graphic Processing Unit (GPU) are able to highly parallelise some operations and therefore perform some specific tasks faster than a CPU. The training procedure of an ANN is suited for GPU computation and therefore allows the computation time to be drastically reduced in most cases.
-
-Using GPU is extremely easy with Flux, as we only have to convert all the variables into CUDA arrays. The rest is directly handled by the package.
-"""
-
-# ╔═╡ 8b30cdad-1517-4367-8037-4d7ddf5dfc8f
-function unpack_and_cudify(data, n)
-    X, Y = data[1:n, :], data[(n+1):end, :]
-    return cu(Float32.(Matrix(X))), cu(Float32.(Matrix(Y)))
-end
-
-# ╔═╡ f22aab50-96b7-48c6-993b-a8613a5263c0
-
+# ╔═╡ ea485131-cd71-4646-9abe-6ddb90eb2c28
+predictnl(Xnl[:,1:5]), Ynl[1:5]
 
 # ╔═╡ 31a1aa20-57f5-4463-8d61-82b10c045799
 md"""
 ## A Brief Summary
 
-+ Loss extremely important.
-+ Gradient descent is a key component.
-+ Large model? --> Never train it on CPU!
-+ Any more complex architecture of ANN relies on the same basic principles!
++ 
+"""
+
+# ╔═╡ 862737ee-e7ca-45f4-ba93-5571393b6571
+md"""
+#### Why Deepen Instead of Broaden?
+
++ The complexity follows an exponential behavior with depth. Only linear with width. Thus less parameters for same complexity.
++ Allows to modify dimensions to achieve some nice properties.
 """
 
 # ╔═╡ d1c7aa96-989f-4ef6-b99f-3dd591336ae1
@@ -1928,7 +1906,6 @@ version = "3.5.0+0"
 # ╠═432b0747-e0c2-4a0a-bcbb-0ee7ffce6e79
 # ╠═214da52c-47fa-44fd-b735-baf2ab665b5e
 # ╠═4a74a7ad-bc6e-488a-91de-2b44df7971de
-# ╠═39b9785d-6c6e-4175-979c-73b7fabad4e0
 # ╟─c75ad903-cfd0-4696-b180-ec18e48f5b83
 # ╠═7048e5ff-483b-4d39-846a-ecbfe64cef50
 # ╠═9cbebc46-2af8-4631-b481-762b53bafad6
@@ -1943,7 +1920,6 @@ version = "3.5.0+0"
 # ╟─02d772e2-07ed-4b8e-bf01-d7c5472fbdbd
 # ╠═6679b679-7246-4750-b731-17125f38d52a
 # ╠═6c98fb25-29af-4ace-87e0-f60f28790b24
-# ╠═2976c8cc-d623-4a03-9d69-d5b9f738360e
 # ╟─a541839d-932d-4c2a-af80-9cc2b5f787a7
 # ╠═373f5103-9adc-426c-bbcd-d19a511463e6
 # ╠═06fbb7f6-10cd-4ada-bacf-2e44e5947f81
@@ -1960,7 +1936,6 @@ version = "3.5.0+0"
 # ╠═3f55e36d-314b-4c47-a352-b860035fd353
 # ╠═a769d445-ec6c-4dca-95c5-2eb4a47566a2
 # ╠═a0ef458b-04ad-4612-ac8f-956ff86d377a
-# ╠═a764e67b-f031-4ec1-acf6-134785bdf6b0
 # ╟─242499eb-036e-457c-8f26-58bb6a75e844
 # ╠═c648fc8f-c32a-4321-8714-f50903a238f3
 # ╠═970566aa-afa9-4e8d-b4d7-f2f1bcbab84b
@@ -1968,6 +1943,7 @@ version = "3.5.0+0"
 # ╠═9506744e-1b89-4fa9-ad0a-55c1cb0a1105
 # ╟─0e39448d-5880-4f4e-b994-85b185bce0d3
 # ╠═f89822ef-4611-468e-9969-e0eca14a3d58
+# ╠═6d141430-ee39-4c84-a0a8-5b8becccfc3c
 # ╟─2e8120f9-2c3b-4f7a-9e12-8233fba3578d
 # ╠═47e703f6-e2a1-44c9-a3a9-4b87f68c00c5
 # ╟─d4777405-ba8f-4593-acd4-678bd5bda3e2
@@ -1979,14 +1955,14 @@ version = "3.5.0+0"
 # ╠═a6926a79-252c-41da-a9e3-1f2f9ab9bf21
 # ╟─e6540e9e-86c1-4425-940d-f606f76e6aff
 # ╠═0e9a77d8-4108-41b6-8c0e-2cf5b92c7baf
+# ╠═9387b001-a175-4aa9-918d-8bd83b465348
+# ╠═3c8a043b-1602-44f8-ba0e-c6f3a40c0dde
 # ╠═ab47a8fc-b36a-4b02-891c-af773ab752e1
 # ╠═31fc72c5-3791-4c6c-b331-bac1a6d7357f
 # ╠═ace85058-c14f-44db-88d8-51273b8fb0f7
-# ╠═862737ee-e7ca-45f4-ba93-5571393b6571
-# ╟─85db91f9-0e1b-4557-9b9c-cc2390a1907e
-# ╠═8b30cdad-1517-4367-8037-4d7ddf5dfc8f
-# ╠═f22aab50-96b7-48c6-993b-a8613a5263c0
+# ╠═ea485131-cd71-4646-9abe-6ddb90eb2c28
 # ╟─31a1aa20-57f5-4463-8d61-82b10c045799
+# ╠═862737ee-e7ca-45f4-ba93-5571393b6571
 # ╟─d1c7aa96-989f-4ef6-b99f-3dd591336ae1
 # ╠═5e117cb5-c360-47fd-be60-41bfcb076550
 # ╟─08b91e46-6330-4e7b-8522-c119ac7e0298
