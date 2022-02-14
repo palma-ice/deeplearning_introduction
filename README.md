@@ -18,7 +18,7 @@ Open a julia REPL within the repo on your local machine:
 
 Acces the package manager by pressing the `]`-key instantiate the packages provided in Project.toml:
 
-`instantiate .`
+`instantiate`
 
 `activate .`
 

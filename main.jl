@@ -25,16 +25,16 @@ md"""
 ## Deep Learning $\subset$ Machine Learning $\subset$ AI
 """
 
-# ╔═╡ 3163f527-a9d0-40c9-b08e-fb151cee34dd
-LocalResource("images/DLoverview.jpeg", :width => 600)
+# ╔═╡ ccc2a564-77cf-4b30-9d11-ba7e6b8c57b9
+Show(MIME"image/jpeg"(), read("images/DLoverview.jpeg"))
 
 # ╔═╡ 8a006f3c-ad88-4d21-8914-ebb057bfda12
 md"""
-## Why Did Deep Learning Become so Popular?
+# Why Did Deep Learning Become so Popular?
 
 + General approximator.
 + Scalable.
-+ Does not plateau with increase of complexity.
++ Does not plateau with increase of data input.
 + Better computation ressources: GPU and cloud computing.
 + Packages allowing fast implementation (e.g. TensorFlow, PyTorch, Theano, Keras...). However this leads to a large community of users but a comparatively small one when it comes to understand the underlying principles!
 
@@ -67,7 +67,7 @@ For this purpose we will use Julia as programming language, Pluto as notebook in
 
 # ╔═╡ 76b7ff5f-d9c8-4b31-8100-0aeae0cfaee6
 md"""
-## Affine Regression with Shallow Network
+# Linear Regression with Shallow Network
 
 Making an affine (or linear) regression on some data is a problem for which reliable analytical solutions exist. **An artificial neural network (ANN) is therefore quite a bad choice for solving this problem!** However, such a simple example allows to understand well what happens under the hood. 
 """
@@ -85,7 +85,7 @@ md"""
 
 # ╔═╡ 5036a12a-1563-4431-8f61-6b2c19b602c0
 md"""
-## Affine Function as Ground Truth
+# Linear Function as Ground Truth
 
 Here we will construct some data that should be fitted by the ANN. To this end we create a random but reproduceable matrix M and bias vector p.
 """
@@ -110,7 +110,7 @@ end
 
 # ╔═╡ c75ad903-cfd0-4696-b180-ec18e48f5b83
 md"""
-## Generating Data
+# Generating Data
 
 Now we create some input data $X = [x_1, x_2, ..., x_{n_m}]$ and compute the corresponding output $Y = [y_1, y_2, ..., y_{n_m}]$ of the linear mapping:
 
@@ -138,7 +138,7 @@ end
 
 # ╔═╡ 02d772e2-07ed-4b8e-bf01-d7c5472fbdbd
 md"""
-## Build a Dense Layer
+# Build a Dense Layer
 
 Dense layers have exactly the same structure as the above defined deterministic linear mapping! 
 
@@ -172,7 +172,7 @@ LocalResource("images/ExampleNN.png", :width => 300)
 
 # ╔═╡ a541839d-932d-4c2a-af80-9cc2b5f787a7
 md"""
-## Constructing the Loss
+# Constructing the Loss
 
 The distance between model and reality is quantified by a loss w.r.t. the output of the model $\hat{Y}$. In other word, if the predicted data is similar to the ground truth, we consider the model to be suited. Our goal can now be formulated rigorously:
 
@@ -200,7 +200,7 @@ loss(X[:,1], Y[:,1])
 
 # ╔═╡ f2d6ad9c-1348-4955-a390-ea23e998c734
 md"""
-## Gradient Descent
+# Gradient Descent
 
 As we can see here, this value is very high and the model is thus rubbish for now. However, we can change the parameters to reduce the loss! This can be easily done with the gradient descent technique:
 
@@ -242,7 +242,7 @@ Hurray! The cost decreased and if we repeat this several times, we might get a n
 
 # ╔═╡ 5f51257d-0296-42c5-8908-a25afbd63bf8
 md"""
-## Split the Data
+# Split the Data
 
 Before going to the full training procedure, we perform a common step called *data-splitting*. While a fraction $f_1$ is used for training, a fraction $f_2$ is used to control the generalisation error during the training. Finally a fraction $f_3$ is kept aside to evaluate the generalisation performance on data that was never evaluated by the ANN. Commonly, $f_2 = f_3$ is chosen. Typical values of $f$ are:
 + $f_1 \in [0.5, 0.9]$
@@ -270,7 +270,7 @@ size(Xtrain), size(Xdev), size(Xtest)
 
 # ╔═╡ e80866d2-fa32-40db-871f-fe43734b90a8
 md"""
-## Build Batches of Training Data
+# Build Batches of Training Data
 
 Another data-splitting that is commonly performed is to seperate the training data in batches of size $n_b$. This allows to update the parameters on a small number of experiments, thus avoiding some drawbacks:
 + If $n_b = 1$, we get our previous update method. This is noisy and not well-suited in the vicinity of the minimum.
@@ -286,7 +286,7 @@ train_loader = Flux.Data.DataLoader( (data=Xtrain, label=Ytrain),
 
 # ╔═╡ ab43a786-4aaa-4d25-8f8f-d77e414f10f9
 md"""
-## Train the Network
+# Train the Network
 
 Now we want to stack everything we have seen until now to obtain our linear regression!
 """
@@ -323,7 +323,7 @@ From worker 2:      0.005 seconds (26.61 k allocations: 12.665 MiB)
 
 # ╔═╡ 614f8685-75d9-4b98-8096-65d0e133d2b6
 md"""
-## Results Analysis
+# Results Analysis
 """
 
 # ╔═╡ 3f55e36d-314b-4c47-a352-b860035fd353
@@ -345,7 +345,7 @@ predict.layers[1].W, M
 
 # ╔═╡ 242499eb-036e-457c-8f26-58bb6a75e844
 md"""
-## Noisy Data
+# Noisy Data
 
 As real-world data is commonly affected by noise, we add a white noise to the data:
 
@@ -377,7 +377,7 @@ train_loadern = Flux.Data.DataLoader( (data=Xntrain, label=Yntrain),
 
 # ╔═╡ 0e39448d-5880-4f4e-b994-85b185bce0d3
 md"""
-## Build a Blank Model & Train it
+# Build a Blank Model & Train it
 """
 
 # ╔═╡ f89822ef-4611-468e-9969-e0eca14a3d58
@@ -392,7 +392,7 @@ end
 
 # ╔═╡ 16910f68-be7b-4600-ad2c-4516b9eb61f2
 md"""
-## Compare Results with Clean Data
+# Compare Results with Clean Data
 """
 
 # ╔═╡ 6d141430-ee39-4c84-a0a8-5b8becccfc3c
@@ -416,7 +416,7 @@ loss(Xtest, Ytest), lossn(Xntest, Yntest)
 
 # ╔═╡ 8dccc75a-8afd-47d4-b25e-0f2542ec9b1a
 md"""
-## Generate Nonlinear Data
+# Generate Nonlinear Data
 
 First, let us generate some data based on a nonlinear function:
 
@@ -433,7 +433,8 @@ end
 
 # ╔═╡ ed438d19-7926-45e1-83d3-2f4d20455f7b
 function nonlinearmap(x)
-	return sum(x .^ exponents)
+	# return sum(x .^ exponents)
+	return cos(2*x[1]) + cos(x[2]) .^ 2 + x[3] + sin(x[4])
 end
 
 # ╔═╡ 86fe5883-91d6-42be-b544-90fde2cbad9b
@@ -452,7 +453,7 @@ end
 
 # ╔═╡ e6540e9e-86c1-4425-940d-f606f76e6aff
 md"""
-## Towards a More Elaborate NN
+# Towards a More Elaborate NN
 
 Fitting nonlinear data can be achieved by applying a so-called *activation* on the output of a dense layer:
 
@@ -473,7 +474,7 @@ Show(MIME"image/png"(), read("images/Activation.png"))
 
 # ╔═╡ 84053e01-8c47-4dd7-b1f4-fb2c43a957f2
 md"""
-## Stacking Layers
+# Stacking Layers
 
 Good news: we can still perform a gradient descent (or anything similar) while accepting a higher degree of complexity.
 
@@ -495,7 +496,7 @@ Show(MIME"image/png"(), read("images/deepnet.png"))
 
 # ╔═╡ bdb756b7-ecb8-4c9e-8f25-f0a993522b78
 md"""
-## Training the Network
+# Training the Network
 
 Here we use a different optimiser to obtain a better performance w.r.t. training process.
 """
@@ -520,7 +521,7 @@ lossnl(Xnl[:,1], Ynl[1])
 
 # ╔═╡ 7bb7e89e-7ef3-48e3-a8cd-a5721a61a474
 md"""
-## Analysing the Results
+# Analysing the Results
 """
 
 # ╔═╡ ace85058-c14f-44db-88d8-51273b8fb0f7
@@ -534,7 +535,7 @@ Ynltest[1:5]
 
 # ╔═╡ 5e117cb5-c360-47fd-be60-41bfcb076550
 md"""
-## What Could Possibly Go Wrong?
+# What Could Possibly Go Wrong?
 
 ### Optimisation-Related Problems
 + Zero-initialisation of W.
@@ -551,11 +552,18 @@ md"""
 ### Data-Related Problems
 + Data too sparse or not well pre-processed. Always compare the number of parameter you want to train and the number of data points.
 + Lack of generality = perform well on data but not on real applications. Underlying problem: overfitting or data provided by different distributions.
+
+### Building a Neural Network is an Iterative Process!
+1. Think about the data you are dealing with!
+1. Start with easiest architecture.
+1. Check that it is able to fit your training data. If not, go back to 2.
+1. Check that it is able to fit test data. If not, obtain more data or apply regularisation techniques.
+1. Improve your performance by tuning hyperparameters.
 """
 
 # ╔═╡ 31a1aa20-57f5-4463-8d61-82b10c045799
 md"""
-## Why Do ANN Perform so Well?
+# Why Do ANN Perform so Well?
 
 + Unconstrained optimisation is a straightforward task.
 + Structure simple enough to compute gradient analytically.
@@ -576,7 +584,7 @@ md"""
 
 # ╔═╡ d1c7aa96-989f-4ef6-b99f-3dd591336ae1
 md"""
-## Further Concepts
+# Further Concepts
 
 + MSE not always the best! For example: cross-entropy.
 + More elaborate optimisers perform better then gradient descent!
@@ -596,6 +604,14 @@ md"""
 
 # ╔═╡ 43409cd7-1c41-4c49-b0db-10de210a29f9
 Show(MIME"image/png"(), read("images/Autoencoder.png"))
+
+# ╔═╡ 9100898e-14c2-4dc6-b806-c70a1da99c20
+md"""
+# Recommendation for Learning More
+
++ Andrew Ng course(s) on Youtube or Coursera.
++ Ian Goodfellow: *Deep Learning*
+"""
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1913,7 +1929,7 @@ version = "3.5.0+0"
 # ╔═╡ Cell order:
 # ╟─4e2c385b-1d4a-4478-949b-4ba5d684ef84
 # ╟─4cb9993c-424b-49ad-af9b-5261c4fd6fac
-# ╟─3163f527-a9d0-40c9-b08e-fb151cee34dd
+# ╟─ccc2a564-77cf-4b30-9d11-ba7e6b8c57b9
 # ╟─8a006f3c-ad88-4d21-8914-ebb057bfda12
 # ╟─008bb14c-3bfa-41f5-82b6-321ec4545cb1
 # ╟─822e024f-819f-4b36-8cdb-8ca69174cd95
@@ -1951,7 +1967,7 @@ version = "3.5.0+0"
 # ╠═312d7fe3-216b-4b3d-98bb-498138a9aba4
 # ╠═122a1c6f-5fb5-4045-a297-b57c1f4a15d6
 # ╠═60b84bf0-b566-43f7-858b-27a0bc88a82c
-# ╠═fcac5bcb-5d04-4b86-8426-c03ef117b45c
+# ╟─fcac5bcb-5d04-4b86-8426-c03ef117b45c
 # ╟─614f8685-75d9-4b98-8096-65d0e133d2b6
 # ╠═3f55e36d-314b-4c47-a352-b860035fd353
 # ╠═a769d445-ec6c-4dca-95c5-2eb4a47566a2
@@ -1995,5 +2011,6 @@ version = "3.5.0+0"
 # ╟─d1c7aa96-989f-4ef6-b99f-3dd591336ae1
 # ╟─2d5dc63c-437e-47a5-a50f-9fb58de7fc32
 # ╟─43409cd7-1c41-4c49-b0db-10de210a29f9
+# ╟─9100898e-14c2-4dc6-b806-c70a1da99c20
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
